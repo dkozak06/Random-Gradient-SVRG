@@ -1,0 +1,874 @@
+\documentclass[11pt] {article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage[pdftex] {graphicx}
+\usepackage{mathtools}
+\usepackage{listings}
+\usepackage{enumerate}
+\usepackage{geometry}
+\graphicspath {{/Users/dkozak/Documents/}}
+\usepackage{layout}
+\usepackage{color}
+\usepackage[most]{tcolorbox}
+\usepackage{xparse}
+\newcounter{example}
+\usepackage{algorithm}
+
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	filecolor=magenta,      
+	urlcolor=cyan,
+	citecolor=red
+}
+
+\urlstyle{same}
+\usepackage[noend]{algpseudocode}
+\geometry{
+	letterpaper,
+	total={8.5in, 11in},
+	left=20mm,
+	top=20mm,
+	bottom=20mm,
+	right=20mm
+}
+
+\def\exampletext{Example}
+
+\NewDocumentEnvironment{example}{ O{} }
+{
+	\colorlet{colexam}{red!55!black} % Global example color
+	\newtcolorbox[use counter=example]{examplebox}{%
+		% Example Frame Start
+		empty,% Empty previously set parameters
+		title={\exampletext: #1},% use \thetcbcounter to access the testexample counter text
+		% Attaching a box requires an overlay
+		attach boxed title to top left,
+		% Ensures proper line breaking in longer titles
+		minipage boxed title,
+		% (boxed title style requires an overlay)
+		boxed title style={empty,size=minimal,toprule=0pt,top=4pt,left=3mm,overlay={}},
+		coltitle=colexam,fonttitle=\bfseries,
+		before=\par\medskip\noindent,parbox=false,boxsep=0pt,left=3mm,right=0mm,top=2pt,breakable,pad at break=0mm,
+		before upper=\csname @totalleftmargin\endcsname0pt, % Use instead of parbox=true. This ensures parskip is inherited by box.
+		% Handles box when it exists on one page only
+		overlay unbroken={\draw[colexam,line width=.5pt] ([xshift=-0pt]title.north west) -- ([xshift=-0pt]frame.south west); },
+		% Handles multipage box: first page
+		overlay first={\draw[colexam,line width=.5pt] ([xshift=-0pt]title.north west) -- ([xshift=-0pt]frame.south west); },
+		% Handles multipage box: middle page
+		overlay middle={\draw[colexam,line width=.5pt] ([xshift=-0pt]frame.north west) -- ([xshift=-0pt]frame.south west); },
+		% Handles multipage box: last page
+		overlay last={\draw[colexam,line width=.5pt] ([xshift=-0pt]frame.north west) -- ([xshift=-0pt]frame.south west); },%
+	}
+	\begin{examplebox}}
+	{\end{examplebox}\endlist}
+
+%\newcommand*\commandname[#inputs]{command #1, command #2, etc}
+\newcommand{\abs}[1]{\left\vert#1\right\vert}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\X}{\pmb{X}}
+\newcommand{\Y}{\pmb{Y}}
+\newcommand{\x}{\pmb{x}}
+\newcommand{\A}{\pmb{A}}
+\renewcommand{\b}{\pmb{b}}
+\newcommand{\y}{\pmb{y}}
+\renewcommand{\d}{\pmb{d}}
+\renewcommand{\v}{\pmb{v}_{s,t-1}}
+\newcommand{\Z}{\pmb{Z}}
+\newcommand{\z}{\pmb{z}}
+\newcommand{\p}{\pmb{p}}
+\renewcommand{\P}{\pmb{P}_{s,t}}
+\newcommand{\h}{\pmb{h}}
+\newcommand{\bxi}{\pmb{\xi}}
+\newcommand{\I}{\pmb{I}}
+\newcommand{\D}{\pmb{D}}
+\newcommand{\w}{\pmb{w}}
+\newcommand{\Expectation}{\mathbb{E}}
+\newcommand{\B}{\pmb{B}}
+\newcommand{\s}{\pmb{s}}
+\newcommand{\f}{\pmb{f}}
+\newcommand{\bigO}[1]{\mathcal{O}(\:#1)}
+\newcommand{\convas}{\overset{a.s.}{\longrightarrow}}
+\newcommand{\convp}{\overset{\Prob}{\longrightarrow}}
+\newcommand{\T}{\mathsf{T}}
+\newcommand{\Llipschitz}{$\ell$-gradient Lipschitz }
+
+\newcommand{\rholipschitz}{$\rho$-Hessian Lipschitz }
+\newcommand{\gradfxk}{\nabla f(\x_k)}
+\newcommand{\gradfxstar}{\nabla f(\x^*)}
+
+\newcommand{\Hessian}{\nabla^2}
+
+
+
+\newcommand{\naturals}{\mathbb{N}}
+\newcommand{\reals}{\mathbb{R}}
+
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\algnewcommand{\Initialize}[1]{%
+	\State \textbf{Initialize:}
+	\Statex \hspace*{\algorithmicindent}\parbox[t]{.8\linewidth}{\raggedright #1}
+}
+
+\algnewcommand{\Inputs}[1]{%
+	\State \textbf{Inputs:}
+	\Statex \hspace*{\algorithmicindent}\parbox[t]{.8\linewidth}{\raggedright #1}
+}
+\algnewcommand{\Outputs}[1]{%
+	\State \textbf{Outputs:}
+	\Statex \hspace*{\algorithmicindent}\parbox[t]{.8\linewidth}{\raggedright #1}
+}
+
+
+\begin{document}
+
+\textcolor{red}{I'm using the term random gradient that I got from Stephen's Career grant proposal. I don't love it because we never have access to the gradient! There is a curiosity in Theorem \ref{thm:VarianceReducedRandomGradient} -- setting $\rho=1$ I would expect to recover the SVRG rate but instead the second term disappears! Either something is incorrect (most likely), or there is a substantial beneficial effect due to the sampling matrices.}
+
+This document investigates the convergence behavior of the so-called random gradient descent method whereby randomly selected directional derivatives are computed at the current iterate in an effort to reduce the computational overhead of traditional gradient descent. We develop a  method analogous to the SVRG of Johnson and Zhang \cite{SVRG}, but in the case of random gradients. The distinction between random gradient and stochastic gradient is not obvious based only on the names; in the former a random subset of directional derivatives are computed whereas in the latter full derivatives are computed for a subset of observations. In what follows, we step through several methods, using deficiencies of one method to motivate developments in the next. In brief, we begin with random gradient descent, and a novel extension to the results of SVRG. We then show how it is possible to combine the two ideas while maintaining the convergence properties. Finally, we add a control variate parameter common to the multi-level Monte Carlo community \textcolor{red}{this last, unfinished}. In what follows uppercase boldfaced letters represent matrices, lowercase boldfaced letters are vectors. Vector norms are assumed to be the 2-norm, and matrix norms are the operator norm. For convenience we provide definitions for different modes of convergence of random variables that will be used.
+ 
+ \begin{definition}[Almost Sure convergence]
+ 	A sequence of random vectors $(\X_n)_{n\in\naturals}$ is said to converge almost surely to a random vector $\X$ if
+ 	
+ 	\begin{equation*}
+ 	\Prob\left(\lim_{n\to\infty}\X_n= \X\right) = 1.
+ 	\end{equation*}
+ 	%	
+ 	This is denoted $\X_n \convas \X$.
+ \end{definition}
+ 
+ 
+ \begin{definition}[Convergence in probability]
+ 	A sequence of random vectors $(\X_n)_{n\in\naturals}$ is said to converge in probability to a random vector $\X$ if for any $\epsilon > 0$
+ 	
+ 	\begin{equation*}
+ 	\lim_{n\to\infty}\mathbb{P}(\norm{\X_n-\X} > \epsilon) = 0.
+ 	\end{equation*}
+ 	
+ 	This is denoted $\X_n \convp \X$.
+ \end{definition}
+ 
+ 
+ 
+ \begin{definition}[Convergence in $L^r$]
+ 	A sequence of random vectors $(\X_n)_{n\in\naturals}$ is said to converge in $L^r$ (that is, in the $r^{th}$ mean) to $\X$ if
+ 	\begin{equation*}
+ 	\lim_{n\to\infty} \Expectation\norm{\X_n-\X}^r = 0
+ 	\end{equation*}
+ 	for a fixed $r>0$. This is denoted, $\X_n \overset{L^r}{\longrightarrow} \X$.	
+ \end{definition}
+ 
+
+
+Also, before we begin, we recall a standard corollary to Doob's Martingale Convergence Theorem which will be used to prove that the function evaluations of our method converge almost surely to the function evaluation at the optimum.  The proof of the Martingale Convergence Theorem  is somewhat lengthy, but can be found in \cite{jacod1999probability}.
+
+
+%\begin{lemma}\label{corr}
+%	Let $f:\reals^d \to \reals$ be a twice continuously-differentiable convex function with $\norm{\nabla^2 f(\x)} \leq \lambda$ for some $\lambda> 0$ and all $\x \in \reals^d$. Then 
+%	
+%	\begin{equation} \label{cor1}
+%	\norm{\nabla f(\x) - \nabla f(\y)}^2 \leq 2\lambda \left[f(\x) - f(\y) - \nabla f(\x)^{\T} (\x-\y)\right], \quad \forall \x, \y \in \reals^d 
+%	\end{equation}
+%\end{lemma}
+%	
+
+\begin{lemma}[Martingale Convergence]\label{martconv}
+	Let $X_k$ be a non-negative supermartingale. Then $X_k \convas X$ for some $X \in L^1$.
+\end{lemma}
+
+Finally throughout this document we will use the Polyak-Lojasiewicz inequality (PL-inequality) which relates to strong convexity in the following way,
+
+
+\begin{lemma}[Strong convexity implies PL-inequality]\label{PLLemma}
+	Let $f :\reals^d \to \reals$ be a $\gamma$-strongly convex, continuously differentiable function. Denote the unique minimizer of $f$ by  $\x_*$. Then:
+	\begin{equation}\label{PLineq}
+		f(\x) - f(\x_*) \leq \frac{1}{2\gamma} \norm{\nabla f(\x)}^2.
+	\end{equation}
+\end{lemma}
+
+Equality \eqref{PLineq} is the PL-inequality.
+
+\begin{proof}
+	By the definition of strongly convex functions given in \cite[pg. 60]{nesterov2013introductory} we have
+	
+	\begin{equation}\label{thisone}
+	f(\x) \geq f(\x') + \nabla f(\x')(\x'-\x) +\frac{\gamma}{2}  \norm{\x'-\x}^2
+	\end{equation}
+	
+	Minimizing the right hand side with respect to $\x'$ results in 
+	\begin{align*}
+	0&= \frac{\partial }{\partial \x'}\left[f(\x') + \nabla f(\x')^{\T}(\x'-\x) + \frac{\gamma}{2} \norm{\x'-\x}^2 \right] \\
+	&=  \nabla f(\x') + \gamma (\x'-\x).
+	\end{align*}
+	
+	That is, $\x'-\x = -\frac{1}{\gamma}\nabla f(\x')$. Plugging this in to equation \eqref{thisone} we get
+	
+	\begin{align*}
+	f(\x) &\geq f(\x') - \frac{1}{\gamma}\norm{\nabla f(\x')}^2 + \frac{1}{2\gamma}\norm{\nabla f(\x')}^2 \\
+	&=f(\x') - \frac{1}{2\gamma}\norm{\nabla f(\x')}^2.
+	\end{align*}
+	
+	By substituting the relevant terms the inequality follows.
+\end{proof}
+
+Lemma \ref{PLLemma} is worth thorough consideration as the PL-inequality can be seen in Theorem \ref{thm:convergence}, as well as in \cite{Karimi2016LinearCO}, to make the analysis much simpler; its usefulness is not exhausted in this work and there are several methods in the optimization literature that can benefit by its application. The PL-inequality was used by Polyak to weaken the assumption of strong convexity while maintaining the linear rate of convergence of standard gradient descent. Note the inequality does \emph{not} imply strong convexity (or even convexity!). That is, it is a weaker condition than strong convexity. Though, as is shown in the proof, if a function is $\gamma$-strongly convex then the inequality is defined by the same $\gamma$.
+
+
+In the following theorem we provide conditions under which function evaluation iterations $f(\x_k)$ of a random gradient descent method will converge to a function evaluation of the optimum, $f(\x_*)$. Random gradient descent is a gradient free method in that we need only compute directional derivatives at each iteration. In high-dimensional problems for which we don't have access to a closed form gradient this can be much faster than estimating the full derivative, making each iteration substantially cheaper than iterations of full gradient descent. The matrices we use for our numerical analyses are scaled Haar distributed random matrices, formed as in Algorithm \ref{Haar} which is described in \cite{mezzadri2006generate}. Theorem \ref{thm:convergence} does not require these matrices in particular but must satisfy specific properties that are outlined in the theorem.
+
+
+\begin{algorithm}
+	\caption{Generate a Scaled Haar Distributed Matrix, based on \cite{mezzadri2006generate}}\label{Haar}
+	\begin{algorithmic}
+		\Inputs{$\ell,d$ \Comment{Dimensions of desired matrix, $d > \ell$}}
+		\Outputs{$\pmb{P}\in \reals^{d\times \ell}$ such that: \\ \quad $ \pmb{P}^{\T}\pmb{P} =\frac{d}{\ell} I_{\ell}$ \\ \quad 
+			$	\Expectation~ 	\pmb{P}\pmb{P}^{\T} = I_d$\\\quad 
+			columns of $\pmb{P}$ are orthogonal}
+		\State Initialize $X \in \reals^{d \times \ell}$
+		\State Set $X_{i,j} \sim \mathcal{N}(0,1)$
+		\State Calculate QR decomposition of $X$
+		\State Let $\pmb{\Lambda} = \begin{pmatrix} \frac{r_{1,1}}{\abs{r_{1,1}}} && \\ & \ddots & \\ && \frac{r_{\ell,\ell}}{\abs{r_{\ell,\ell}}}  \end{pmatrix}$
+		\State $\pmb{P} =\frac{d}{\ell}\pmb{Q}\pmb{\Lambda}$
+		
+		
+		
+	\end{algorithmic}
+\end{algorithm}
+
+
+
+
+\begin{theorem}[Convergence of Random Gradient Descent]\label{thm:convergence}
+	Let $\mathbf{P}_k \in \reals^{d \times \ell}, k=1,2, \ldots$ be random matrices such that $\Expectation \mathbf{P}_k\mathbf{P}_k^{\T} = \I_d$  and $\mathbf{P}^{\T}_k\mathbf{P}_k=\frac{d}{\ell}\I_{\ell}$ with $d > \ell$. Define the filtration $\mathcal{F}_k = \sigma(\mathbf{P}_1, \ldots \mathbf{P}_{k-1})$. Assume the following:
+	
+	\begin{enumerate}
+				\item    $f: \reals^d \to \reals$ is a twice continuously differentiable function with $\lambda \I - \nabla^2f(\x) \succeq 0$ for some $\lambda >0$ and all $\x \in \reals^d$.
+				
+			\item For some $\lambda \geq \gamma > 0$ and all $\x \in \reals^d$, the function $f$ satisfies the inequality of Lemma \ref{PLLemma}: 
+			\begin{equation*}
+			f(\x) - f(\x_*) \leq \frac{1}{2\gamma} \norm{\nabla f(\x)}^2.
+			\end{equation*} 
+			
+	
+	\end{enumerate}
+	
+	
+	Define the recursion
+	
+	\begin{equation}\label{SGD}
+	\x_{k+1} = \x_k - \alpha~ \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k)
+	\end{equation}
+	
+	Then $f(\x_k) \convas f(\x_*)$ and $f(\x_k) \overset{L^1}{\to} f(\x_*)$. 
+	
+\end{theorem}
+
+
+\begin{proof}
+	By Taylor's theorem we have, 
+	\begin{equation}\label{Taylor}
+	f(\x_{k+1}) \leq  f(\x_k) + \nabla f(\x_k)^{\T}(\x_{k+1}-\x_k) + \frac{\lambda}{2}\norm{\x_{k+1}-\x_k}^2
+	\end{equation}
+	We rearrange equation \eqref{SGD} to get $\x_{k+1}-\x_k = -\alpha(\mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k))$ and plug this into equation \eqref{Taylor}. We let $f_e(\x) = f(\x)-f(\x_*)$ be the error for a particular $\x$.  Note that $f_e$ is a non-negative function. Then,
+	
+	\begin{align}\label{delineq}
+	\nonumber	f_e(\x_{k+1}) - f_e(\x_k)  &\leq - \alpha  \nabla f(\x_k)^{\T}\mathbf{P}_k\mathbf{P}_k^{\T} \nabla f(\x_k) + \frac{\alpha^2\lambda}{2}\norm{\mathbf{P}_k\mathbf{P}_k^{\T} \nabla f(\x_k)}^2\\
+	\nonumber	&= -\alpha \langle \nabla f(\x_k),~ \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) \rangle + \frac{\alpha^2\lambda}{2}  \langle  \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k),~ \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) \rangle \\
+	\nonumber	&= -\alpha \langle \nabla f(\x_k),~ \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) \rangle + \frac{d\alpha^2\lambda}{2\ell}  \langle \nabla f(\x_k),~ \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) \rangle\\
+		\nonumber	&= \left(-\alpha +\frac{d\alpha^2\lambda}{2\ell}\right)  \langle \nabla f(\x_k),~ \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) \rangle,
+	\end{align}
+	%
+	%
+	where we have used the fact that $\mathbf{P}_k\mathbf{P}_k^{\T}\mathbf{P}_k\mathbf{P}_k^{\T}= \frac{d}{\ell}\mathbf{P}_k\mathbf{P}_k^{\T}$. By taking conditional expectations of both sides we get
+	
+	\begin{equation*}
+	\Expectation \left[f_e(\x_{k+1})-f_e(\x_k) \mid \mathcal{F}_k \right] \leq  \left(-\alpha +\frac{d\alpha^2\lambda}{2\ell}\right) \Expectation \left[ \langle \nabla f(\x_k), \mathbf{P}_k\mathbf{P}_k^{\T} \nabla f(\x_k) \rangle  \bigg| \mathcal{F}_k \right] .
+	\end{equation*}
+	%
+	%
+Since $\x_k$ is $\mathcal{F}_k$ measurable, it can be pulled out of the conditional expectation, and we can pass the expectation through due to linearity. Noting that $\Expectation \left[\mathbf{P}_k\mathbf{P}_k^{\T} \mid \mathcal{F}_k \right]=\I_d$,  this leaves us with
+	
+		
+		\begin{equation} \label{almost there}
+		\Expectation \left[f_e(\x_{k+1})-f_e(\x_k) \mid \mathcal{F}_k \right] \leq  \left(-\alpha +\frac{d\alpha^2\lambda}{2\ell}\right) \norm{\nabla f(\x_k)}^2 
+		\end{equation}
+		%
+	In particular, We can choose $\alpha$ such that $ \left(-\alpha +d\alpha^2\lambda/2\ell\right) <0$. That is, $0< \alpha < 2\ell/d\lambda$. Then equation \eqref{almost there} gives us
+	
+	\begin{align}\label{intermediate}
+	\Expectation \left[f_e(\x_{k+1}) \mid \mathcal{F}_k\right] &\leq  \left(-\alpha +\frac{d\alpha^2\lambda}{2\ell}\right) \norm{\nabla f(\x_k)}^2 + f_e(\x_{k}) \\
+\nonumber	&\leq f_e(\x_k),
+	\end{align}
+		%
+	which shows that $f_e(\x_k)$ is a (non-negative) supermartingale. By Lemma \ref{martconv}, $f_e(\x_k)$ converges almost surely to an integrable random variable, but the actual limit remains to be determined.  Going back to equation \eqref{intermediate}, and recalling that the first term on the right-hand side is negative, we use the inequality \eqref{PLineq} to get:
+	
+	\begin{align*}
+		\Expectation \left[f_e(\x_{k+1}) \mid \mathcal{F}_k\right] &\leq  \left(-\alpha +\frac{d\alpha^2\lambda}{2\ell}\right) \norm{\nabla f(\x_k)}^2 + f_e(\x_{k}) \\
+		&\leq 2\gamma  \left(-\alpha +\frac{d\alpha^2\lambda}{2\ell}\right)f_e(\x_k) + f_e(\x_{k})\\
+		& = \left(1-2\gamma\alpha\left(1-\frac{d\alpha\lambda}{2\ell}\right)\right)f_e(\x_k).
+	\end{align*}
+%	
+	Recursive application yields
+	
+	\begin{equation*}
+		\Expectation \left[f(\x_{k+1})-f(\x_*) \mid \mathcal{F}_k \right]\leq  \left(1-2\gamma\alpha\left(1-\frac{d\alpha\lambda}{2\ell}\right)\right)^k \left(f(\x_0) - f(\x_*)\right).
+	\end{equation*}
+	%
+	Any stepsize $0 < \alpha < 2\ell/d\lambda$ forces the right-hand side to converge to zero. Thus, since $	f_e(\x_k) \convas \X$ for some $\X \in L^1$ \emph{and} $f_e(\x_k)\overset{L^1}{\to} 0$, we have both $f(\x_k) \convas f(\x_*)$ \emph{and} $f(\x_k) \overset{L^1}{\to} f(\x_*)$. 
+\end{proof}
+%
+We point out that under slightly different conditions we also have convergence of the iterates to the optimal solution. In particular, We replace the PL-inequality with a more restrictive assumption of strong convexity but allow the function to be less smooth. Under these conditions the result of Corollary \ref{corr:convergence} is much stronger than Theorem \ref{thm:convergence}; in the field of inverse problems it is usually this result, not that of Theorem \ref{thm:convergence} that is sought. With the change in assumptions, the proof of the corollary requires the following Lemma whose straightforward proof can be found in \cite[pg. 56]{nesterov2013introductory}
+
+
+\begin{lemma}[Properties of convex functions with Lipschitz continuous derivative]\label{NesterovWeakening}
+	Let $f: \reals^d \to \reals$ be a convex function with a $\lambda$-Lipschitz continuous derivative. Then for all $\x, \y \in \reals^d$ the following are equivalent:
+	\begin{equation}\label{Nesterov1}
+	f(\y)\leq f(\x) - \langle \nabla f(\x), \y-\x \rangle + \frac{\lambda}{2} \norm{\x-\y}^2,
+	\end{equation}
+	\begin{equation}\label{Nesterov2}
+	f(\y) \geq f(\x) + \langle \nabla f(\x), \y-\x\rangle + \frac{1}{2 \lambda} \norm {\nabla f(\x) - \nabla f(\y)}^2.
+	\end{equation}
+	
+\end{lemma}
+
+By equation \eqref{Nesterov1}, if the function is convex then this lemma allows us to relax the smoothness of the function from twice continuous differentiability, while still allowing the use of equation \eqref{Taylor} in the proof of Theorem \ref{thm:convergence}. We will make use of equation \eqref{Nesterov2} in the proof of Theorem \ref{thm:VarianceReducedRandomGradient}, but first the corollary:
+
+
+\begin{corollary}[Convergence under strong convexity]\label{corr:convergence}
+	
+	Let $\mathbf{P}_k \in \reals^{d \times \ell}, k=1,2, \ldots$ be random matrices such that $\Expectation \mathbf{P}_k\mathbf{P}_k^{\T} = \I_d$ and $\mathbf{P}^{\T}_k\mathbf{P}_k=\frac{d}{\ell}\I_{\ell}$. Define the filtration $\mathcal{F}_k = \sigma(\mathbf{P}_1, \ldots \mathbf{P}_{k-1})$. Assume that $f: \reals^d \to \reals$ is a continuously differentiable function that is $\gamma$-strongly convex with a $\lambda$-Lipschitz gradient for some $\lambda \geq \gamma > 0$ and all $\x \in \reals^d$.
+
+	
+	Define the recursion
+	
+	\begin{equation*}
+	\x_{k+1} = \x_k - \alpha \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k)
+	\end{equation*}
+	
+	Then $\x_k \convas \x_*$.
+	
+\end{corollary}
+
+\begin{proof}
+Using equation \eqref{Nesterov1} from Lemma \ref{NesterovWeakening} instead of Taylor's theorem for equation \eqref{Taylor}, and by Lemma \ref{PLLemma}, we know that the strong convexity provided by this corollary implies the assumptions of Theorem \ref{thm:convergence}, so that $f(\x_k) \convas f(\x_*)$. Now we make use of strong convexity, 
+ 
+ \begin{equation*}
+ f(\x_k) - f(\x_*) \geq \frac{\gamma}{2} \norm{\x_*-\x_k}.
+ \end{equation*}
+% 
+ Since the left-hand side converges almost surely to zero and $\gamma > 0$, we have $\x_k \convas \x_*$.
+\end{proof}
+%
+As pointed out, though the proof of Corollary \ref{corr:convergence} is largely similar to that of Theorem \ref{thm:convergence}, the conditions are different and the result is much stronger. In one sense, the conditions required for convergence of the iterates is stronger since $\gamma$-strong convexity is more restrictive than the PL-inequality. On the other hand, there is little difference between the two in practice and the weakening of the restriction on the smoothness to continuous differentiability is of more practical importance. This is interesting because with Corollary \ref{corr:convergence} we end up with a much stronger result by practically weakening our assumptions.
+%
+Finally, we extend the result of Theorem \ref{thm:convergence} by showing that it has a linear rate of convergence. This result may be somewhat counterintuitive at first, it is well known that stochastic methods have a sub-linear rate of convergence but by applying the stochasticity to features rather than to samples the step size remains constant and the rate is linear. In addition, we provide guidance for selecting an optimal step size which in theory alleviates the need for the user to tune any hyperparameters. 
+
+\begin{corollary}[Rate of convergence]\label{corr:rate}
+	Let the $f:\reals^d \to \reals$ satisfy the conditions of Theorem \ref{thm:convergence} \emph{or} of Corollary \ref{corr:convergence}. Then the recursion defined in equation \eqref{SGD} satisfies the following convergence rate:
+	\begin{equation}
+	\Expectation \left[f_e(\x_k) \mid \mathcal{F}_k\right] \leq \beta^k f_e(\x_0) ,
+	\end{equation}
+	%
+	where,
+	%
+	\begin{equation*}
+	\beta = 1 - \frac{\ell \gamma}{d \lambda }.
+	\end{equation*}
+	%
+	Furthermore, the stepsize that achieves this rate is 
+	
+	\begin{equation*}
+	\alpha = \frac{\ell\gamma}{d\lambda}.
+	\end{equation*}
+\end{corollary}
+%
+The optimal stepsize is easily interpretable as the product of the sample rate $\ell/d$, and the Lipschitz constant, and the convergence rate is the product of the sample rate and the condition number. 
+
+\begin{proof}
+ We begin by providing an upper bound for $\norm{\nabla f(\x_k)}^2$. Rearranging the terms in equation \eqref{almost there} we have
+
+\begin{equation} \label{UpperBound}
+ \left(\alpha -\frac{d\alpha^2\lambda}{2\ell}\right) ^{-1}\Expectation \left[f_e(\x_k) - f_e(\x_{k+1})\mid \mathcal{F}_k \right] \geq \norm{\nabla f(\x_k)}^2.
+\end{equation}
+%
+%
+For the lower bound, due to inequality \eqref{PLineq} we have 
+
+\begin{align}\label{LowerBound}
+2\gamma	\left(f(\x_k) - f(\x_*)\right) \leq \norm{\nabla f(\x_k)}^2
+\end{align}
+%
+Combining equations \eqref{UpperBound} and \eqref{LowerBound} we get
+%
+\begin{equation*}
+2\gamma f_e(\x_k) \leq \norm{\nabla f(\x_k)}^2 \leq \left( \alpha - \frac{d \alpha^2 \lambda}{2\ell}\right)^{-1} \Expectation\left[f_e(\x_{k}) - f_e(\x_{k+1}) \mid \mathcal{F}_k\right].
+\end{equation*}
+%
+That is,
+
+\begin{equation}\label{nearly}
+\Expectation \left[f_e(\x_{k+1}) \mid \mathcal{F}_k\right] \leq \left(1-2\gamma\alpha\left(1-\frac{d\alpha\lambda}{2\ell}\right)\right)f_e(\x_k).
+\end{equation}
+%
+The optimal stepsize  $\alpha=\ell/d \lambda$ can be found by minimizing the right hand side of equation \eqref{nearly} with respect to $\alpha$. Using this optimal stepsize we get
+
+\begin{equation*}
+0 < \beta = 1 - \frac{\ell \gamma}{d \lambda } < 1.
+\end{equation*}
+%
+Repeated recursion yields the desired result.
+
+\end{proof}
+%
+%
+%
+%
+We now recall the result of SVRG, provided by and proved in Johnson and Zhang \cite{SVRG} before moving forward to extend the result by providing a proof of almost sure convergence of the iterates and function evaluations of SVRG. The setting is that we wish to minimize the functional $f(\x):=\frac{1}{n}\sum_{i=1}^n f_i(\x)$ using SVRG, which takes the following form:
+
+
+\begin{equation*}
+\x_{k+1} = \x_k - \alpha \left(\nabla f_{i_k}(\x_{k}) - \nabla f_{i_k}(\tilde{\x_s}) + \tilde{\pmb{\mu}}_s\right).
+\end{equation*}
+
+Where $\tilde{\x_s}$ is a past iterate updated every $m$ iterations. A full gradient is also calculated every $m$ iterations, $\tilde{\pmb{\mu}}_s=\nabla f(\tilde{\x_s}) = \frac{1}{n}\sum_{i_k=1}^n \nabla f_{i_k}(\tilde{\x_s})$, and $i_k$ is chosen uniformly at random at each iteration from $\{1, \ldots, n\}$.
+
+\begin{theorem}[SVRG]\label{SVRG}
+	Assume that each $f_i$ is convex and smooth,
+	\begin{equation*}
+	f_i(\x)-f_i(\x') - \nabla f_i(\x')^{\T}(\x-\x') \leq \frac{\lambda}{2}\norm{\x-\x'}_2
+	\end{equation*}
+	for all $\x, \x'$. And that $f(\x)$ is strongly convex,
+	\begin{equation*}
+	f(\x) - f(\x') - \nabla f(\x')^{\T}(\x-\x') \geq \frac{\gamma}{2} \norm{\x-\x'}_2^2
+	\end{equation*}
+	where $\lambda \geq \gamma > 0$. Let $\x_*=\arg\min_{\x} f(\x)$. Assume that the memory parameter, $m$ is sufficiently large so that
+	
+	\begin{equation*}
+	\beta = \frac{1}{\gamma \alpha (1-2\lambda\alpha)m} + \frac{2\lambda\alpha}{1-2\lambda\alpha} <1
+	\end{equation*}
+	%
+	Then we have the following expected rate of convergence,
+	
+	\begin{equation}\label{SVRGResult}
+	\Expectation \left[ f(\tilde{\x}_s) - f(\x_*) \right] \leq \beta^s\left[f(\tilde{\x}_0) - f(\x_*)\right],
+	\end{equation}
+	%
+	where $s$
+	
+	
+\end{theorem}
+
+The proof, omitted here, can be found in \cite{SVRG}. It is important to recognize that $f(\tilde{\x}_0) - f(\x_*)$ is a constant. Theorem \ref{SVRG} implies that $f(\tilde{\x}_s) \overset{L^1}{\longrightarrow} f(\x_*)$ since $\lim_{s\to\infty}\beta^{s}=0$. We will further show that the convergence is also in the other modes, but first we provide an alternate characterization of almost sure convergence as well as two lemmata that illustrate the relationship between the modes of convergence. The proofs of these lemmata are found in the appendix.
+
+
+\begin{lemma}[Alternative characterization of a.s. convergence]\label{ascharacterization}
+	Let $(\X_n)_{n\in \naturals}$ and $\X$ be random vectors in $\reals^p$. Then, $\X_n \convas \X$ if and only if for all $\epsilon >0$
+	\begin{equation*}
+	\lim_{n\to\infty}\mathbb{P}\left(\bigcap_{k\geq n}\{\norm{\X_k-\X}<\epsilon\}\right) = 1.
+	\end{equation*}
+\end{lemma}
+
+
+\begin{lemma}[Convergence in expectation implies convergence in probability]\label{comparingconvergence}
+	Let $(\X_n)_{n \in \naturals}$ and $\X$ be random vectors in $\reals^p$ and let $\X_n \overset{L^1}{\longrightarrow} \X$. Then, $\X_n \convp \X$. 
+\end{lemma}
+
+
+\begin{lemma}[Fast convergence in probability implies a.s. convergence]\label{fastplemma}
+	Let $(\X_n)_{n\in \naturals}$ and $\X$ be random vectors in $\reals^p$ and $\epsilon > 0$. Then if,
+	\begin{equation} \label{fastp}
+	\sum_{k=1}^{\infty} \mathbb{P}(\norm{\X_k-\X}> \epsilon) < \infty,
+	\end{equation}
+	(i.e., $(\X_n$) converges `fast' in probability to $\X$) then $\X_n\convas \X$.
+\end{lemma}
+%
+Finally, we can state and prove the desired theorem,
+
+\begin{theorem}[SVRG almost surely]\label{thm:SVRG-AS}
+	Assume the same setup as SVRG. Then, 
+	\begin{enumerate}[(i)]
+		\item $f(\tilde{\x}_s) \convas f(\x_*)$, and 
+		\item $\tilde{\x}_s \convas \x_*$.
+	\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+	
+	We begin with (i). In the original paper, Johnson and Zhang already proved that $f(\tilde{\x}_s) \overset{L^1}{\longrightarrow} f(\x_*)$. By Lemma \ref{comparingconvergence}, this implies $f(\tilde{\x}_s) \convp f(\x_*)$ at a rate that is at least equivalent. In particular, Lemma \ref{comparingconvergence} allows us to say,
+	\begin{equation*}
+	\mathbb{P}(\norm{f(\tilde{\x}_s) - f(\x_*)} > \epsilon) \leq \beta^s \left[f(\tilde{\x}_0) - f(\x_*)\right], \qquad \beta<1.
+	\end{equation*}
+%	
+	We sum both sides to get
+	
+	\begin{align*}
+	\sum_{s=1}^{\infty}	\mathbb{P}(\norm{f(\tilde{\x}_s) - f(\x_*)} > \epsilon) &\leq \sum_{s=1}^{\infty} \beta^s \left[f(\tilde{\x}_0) - f(\x_*)\right] \\
+	&\leq \frac{\left[f(\tilde{\x}_0) - f(\x_*)\right]}{1- \beta}\\
+	& < \infty.
+	\end{align*}
+	%
+	Where the second inequality is the sum of the geometric series since $\beta< 1$. This satisfies the requirements to apply Lemma \ref{fastplemma}, giving us our result.
+	%
+	For (ii) we note that by assumption $f$ is strongly convex, therefore it has a unique minimizer.
+\end{proof}
+
+
+It is possible to skip the use of Lemma \ref{comparingconvergence} and use Markov's inequality directly to jump from convergence in $L^1$ to convergence in probability, but it seems more descriptive stepping through it in this manner. 
+%
+As stated, SVRG is stochastic in that it draws individual samples from the dataset. Our goal is different in that we are interested in stochasticity along the features, motivating a new algorithm we call \emph{Variance Reduced Random Gradient Descent}. But for a few alterations the proof presented in Johnson and Zhang \cite{SVRG} for the convergence of SVRG is almost sufficient for proving the convergence of variance reduced random gradient descent. We depart from their proof in order to introduce the matrices that we use to select the descent directions, to make explicit the use of $\sigma$-algebras, and to provide bounds more relevant to our problem. We generate a random matrix using Algorithm \ref{Haar}, and the main algorithm is described in Algorithm \ref{alg:varprod}.
+
+
+\begin{algorithm}
+	\caption{VAriance Reduced RAndom GRAdient Descent (VARRAGRAD)}\label{alg:varprod}
+	\begin{algorithmic}
+		\Inputs{$m, \alpha$ \Comment{memory parameter, stepsize}}
+		\Initialize{ $\tilde{\x}_0$}
+		
+		\For {$s = 1, 2, \ldots$}
+		\State $\tilde{\x} = \tilde{\x}_{s-1}$
+		\State $\x_{s,0} = \tilde{\x}$
+		\For {k = 1, \ldots, m}
+		\State Generate $\P$ using Algorithm \ref{Haar}
+		\State $\x_{s,k} = \x_{s,k-1} - \alpha \left[\P\P^{\T}\nabla f(\x_{s,k-1}) - \left(\P\P^{\T}-\I\right)\nabla f(\tilde{\x}) \right]$
+		\EndFor
+		\State $J_s = \text{unif}\{0, \ldots, m-1\}$
+		\State $\tilde{\x}_s = \x_{s,J_s}$
+		\EndFor
+	\end{algorithmic}
+\end{algorithm}
+
+As in Corollary \ref{corr:convergence} and Theorem \ref{SVRG}, we seek to minimize a strongly convex function $f : \reals^d \to \reals$. We allow for, but do not require $f$ to have a representation as $f(\x) = \frac{1}{n}\sum_{i=1}^n f_i(\x)$. In particular, unlike Theorem \ref{SVRG}, we do not require Lipschitz continuity of the $f_i$.
+
+In order to be precise in our use of conditional expectation throughout the proof, we define a filtration $\mathcal{F}_{s,k} = \sigma(\pmb{P}_{1,1}, \ldots, \pmb{P}_{1,m} \ldots, \pmb{P}_{s-1,1},\ldots,  \pmb{P}_{s-1,m}, \pmb{P}_{s,1},\ldots,  \pmb{P}_{s,k-1}  , J_1, \ldots J_{s-1})$, according to which $\x_{s,k}$ and $\tilde{\x}_{s-1}$ are adapted. It follows from the law of total expectation that 
+
+\begin{equation}\label{doubleexpect}
+\Expectation f(\tilde{\x}_s) = \Expectation \Expectation (f(\tilde{\x}_s)\mid \mathcal{F}_{s,k}) = \Expectation \frac{1}{m}\sum_{k=0}^{m-1} f(\x_{s,k}).
+\end{equation}
+%
+The proof requires the use of equation \eqref{Nesterov2} from Lemma \ref{NesterovWeakening}. In particular, we use the following extension to the lemma: if we let $\A \in \reals^{d \times d}$ be such that $\norm{\A} = \rho$ then 
+
+%
+%\begin{lemma}\label{lemma:conv-ineq}
+%	Let $f:\reals^d \to \reals$ be a twice continuously-differentiable convex function with $\norm{\nabla^2 f(\x)} \leq \lambda$ for some $\lambda> 0$ and all $\x \in \reals^d$. Then 
+%	
+%	\begin{equation*}
+%	\norm{\nabla f(\x) - \nabla f(\y)}^2 \leq 2\lambda \left[f(\x) - f(\y) - \nabla f(\x)^{\T} (\x-\y)\right], \quad \forall \x, \y \in \reals^d 
+%	\end{equation*}
+%\end{lemma}
+%
+%
+%\begin{proof}
+%	Let $\x, \y \in \reals^d$ and define $F:\reals^d \to \reals$,
+%	\begin{equation*}
+%	F(\x) = f(\x) - f(\y) - \nabla f(\y)^{\T}(\x-\y)
+%	\end{equation*}
+%	%
+%	Since $f$ is convex, $F(\x) \geq 0 $ for all $\x$, and because $f$ is twice continuously differentiable
+%	
+%	\begin{align*}
+%	F(\x + \y) &= F(\x) + \nabla F(\x)^{\T}\y + \y^{\T} \left[\int_0^1\int_0^1 \nabla^2 F(\x+st\y)t~ ds dt \right]\y \\
+%	&\leq F(\x) + \nabla F(\x)^{\T}\y + \frac{\lambda}{2}\norm{\y}^2.
+%	\end{align*}
+%	
+%	In particular, for any $t \in \reals$,
+%	
+%	\begin{equation}
+%	0 \leq F(\x-t\nabla F(\x)) \leq F(\x) - \frac{1}{2\lambda}\norm{\nabla F(\x)}^2,
+%	\end{equation}
+%	which implies
+%	
+%	\begin{equation*}
+%	\norm{\nabla f(\x) - \nabla f(\y)}^2 = \norm{\nabla F(\x)}^2 \leq 2\lambda F(\x) = 2\lambda [f(\x) - f(\y) - \nabla f(\x)^{\T}(\x-\y)].
+%	\end{equation*}
+%	
+%\end{proof}
+
+
+	\begin{equation} \label{eqn:op-ineq}
+	\norm{\A(\nabla f(\x) - \nabla f(\y))}^2 \leq 2\rho^2\lambda \left[f(\x) - f(\y) - \nabla f(\x)^{\T} (\x-\y)\right], \quad \forall \x, \y \in \reals^d .
+	\end{equation}
+%
+This is an immediate consequence of the definition of the operator norm for matrices.
+
+
+\begin{theorem}[Almost sure convergence of VARRAGRAD]\label{thm:VarianceReducedRandomGradient}
+Assume that $f: \reals^d \to \reals$ is a continuously differentiable function that is $\gamma$-strongly convex with a $\lambda$-Lipschitz gradient for some $\lambda \geq \gamma > 0$ and all $\x \in \reals^d$.	Let $\x_*$ be the minimizer of $f$, and choose a memory parameter $m$, and stepsize $\alpha$ such that
+	
+	\begin{equation*}
+	\beta = \frac{1}{\gamma\alpha m (1-2\alpha \lambda \rho^2)} + \frac{2\lambda\alpha (\rho^2 + 1-2\rho)}{1-2\alpha \lambda \rho^2}<1	\end{equation*}
+%
+	Then, Algorithm \ref{alg:varprod} results in the following convergence:
+	 
+	\begin{equation}\label{goal}
+	\Expectation \left[f(\tilde{\x}_s) - f(\x_*))\right] \leq \beta^s \left[f(\tilde{\x}_0) - f(\x_*))\right]
+	\end{equation}
+	and $\tilde{\x}_s \convas \x_*$
+\end{theorem}
+
+\begin{proof}
+	Let \begin{equation*}
+	\d_{s,k}(\x) = \P\P^{\T}\left(\nabla f(\x) - \nabla f(\x_*)\right),
+	\end{equation*}
+	
+	and define the quantity $\rho = \norm{\P\P^{\T}}=\frac{d}{\ell}$. Then by equation \eqref{eqn:op-ineq} we get 
+	\begin{align*}
+	\norm{\d_{s,k}(\x)}^2 &\leq 2\lambda\rho^2 \left(f(\x)- f(\x_*) - \nabla f(\x_*)^{\T}(\x-\x_*) \right) \\
+	&= 2\lambda\rho^2\left(f(\x)-f(\x_*)\right).
+	\end{align*}
+	
+	We write the recursion for epoch $s$ as 
+	\begin{equation}\label{recursion}
+	\x_{s,k} = \x_{s,k-1} - \alpha \v,
+	\end{equation}
+	
+	where 
+	\begin{equation*}
+	\v  =  \P\P^{\T}\nabla f(\x_{s,k-1}) - \left(\P\P^{\T}-\I\right)\nabla f(\tilde{\x}_{s-1}).
+	\end{equation*}
+	
+	Note that 
+	
+	\begin{equation}\label{expectation} 
+	\Expectation (\v\mid \mathcal{F}_{s,k}) = \nabla f(\x_{s,k-1}).
+	\end{equation}
+	
+	Note further that 
+	
+	\begin{align}\label{normv}
+	\nonumber \norm{\v}^2&= \norm{\P\P^{\T}\nabla f(\x_{s,k-1}) - \left(\P\P^{\T}-\I\right)\nabla f(\tilde{\x}_{s-1})}^2,\\
+	\nonumber&\leq 2 \norm{\P\P^{\T}(\nabla f(\x_{s,k-1})-\nabla f(\x_*))}^2 + 2\norm{\left(\P\P^{\T}-\I\right)(\nabla f(\tilde{\x}_{s-1})-\nabla f(\x_*))}^2,\\
+	\nonumber&= 2\norm{\d_{s,k}(\x_{s,k-1})}^2 +2\norm{\left(\P\P^{\T}-\I\right)(\nabla f(\tilde{\x}_{s-1})-\nabla f(\x_*))}^2, \\
+	&\leq 4\lambda\rho^2 (f(\x_{s,k-1}) - f(\x_*)) + 4\lambda(\rho^2+1-2\rho)(f(\tilde{\x}_{s-1}) - f(\x_*))
+	\end{align}
+	
+	By subtracting $\x_*$ from both sides of equation \eqref{recursion} and taking a norm squared we get
+	
+	\begin{equation*}
+	\norm{\x_{s,k}-\x_*}^2 = \norm{\x_{s,k-1}-\x_*}^2 - 2\alpha (\x_{s,k-1}-\x_*)^{\T}\v + \alpha^2 \norm{\v}^2.
+	\end{equation*}
+	
+	Taking a conditional expectation, substituting in equations \eqref{expectation} and \eqref{normv} and recalling that convexity of $f$ implies that $(\x_{s,k-1} - \x_*)^{\T}\nabla f(\x_{s,k-1}) \geq f(\x_{s,k-1})-f(\x_*)$, we get
+	
+	\begin{equation*}
+	\Expectation(\norm{\x_{s,k}-\x_*}^2\mid \mathcal{F}_{s,k}) \leq \norm{\x_{s,k-1}-\x_*}^2 - 2\alpha (1 - 2\alpha \lambda \rho^2) \left[ f(\x_{s,k-1})-f(\x_*)\right]  + 4\alpha^2\lambda(\rho^2+1-2\rho)\left[f(\tilde{\x}_{s-1}) - f(\x_*)\right]. 
+	\end{equation*}
+	
+	Taking another expectation of both sides leads to 
+	
+	\begin{equation}\label{ts}
+	\Expectation \norm{\x_{s,k}-\x_*}^2 \leq \Expectation\norm{\x_{s,k-1}-\x_*}^2 - 2\alpha (1 - 2\alpha \lambda \rho^2) \Expectation\left[ f(\x_{s,k-1})-f(\x_*)\right]  + 4\alpha^2\lambda(\rho^2+1-2\rho)\Expectation\left[f(\tilde{\x}_{s-1}) - f(\x_*)\right]. 
+	\end{equation}
+	
+	At this point we have an idea of the expected improvement between iteration $k-1$ and iteration $k$, but we would like to know the improvement between $s-1$ and $s$. To do this, we sum equation \eqref{ts} from $k=1$ to $k=m$ and use the identity of equation \eqref{doubleexpect} to get
+	\small 
+	\begin{align*} 
+	\Expectation \norm{\x_{s,m}-\x_*}^2 &\leq \Expectation\norm{\x_{s,0}-\x_*}^2 - 2\alpha (1 - 2\alpha \lambda \rho^2) \Expectation\sum_{k=1}^m\left[ f(\x_{s,k-1})-f(\x_*)\right]  + 4\alpha^2\lambda m(\rho^2+1-2\rho)\Expectation\left[f(\tilde{\x}_{s-1}) - f(\x_*)\right],\\
+	&= \Expectation\norm{\tilde{\x}_{s-1}-\x_*}^2 - 2\alpha m (1 - 2\alpha \lambda \rho^2) \Expectation\left[ f(\tilde{\x}_{s})-f(\x_*)\right]  + 4\alpha^2\lambda m(\rho^2+1-2\rho)\Expectation\left[f(\tilde{\x}_{s-1}) - f(\x_*)\right].
+	\end{align*}
+	\normalsize
+	Since the left hand side is positive, we can remove it and move the second term on the right to the other side in order to obtain
+	
+	\begin{equation}\label{almost}
+	2\alpha m (1 - 2\alpha \lambda \rho^2) \Expectation\left[ f(\tilde{\x}_{s})-f(\x_*)\right]\leq \Expectation\norm{\tilde{\x}_{s-1}-\x_*}^2   +4\alpha^2\lambda m(\rho^2+1-2\rho)\Expectation\left[f(\tilde{\x}_{s-1}) - f(\x_*)\right]
+	\end{equation}
+	
+	We recall that by the strong convexity of $f$ we have 
+	\begin{equation*}
+	f(\x) -f(\x_*) \geq \nabla f(\x_*)^{\T} (\x-\x_*) + \frac{\gamma}{2}\norm{\x-\x_*}^2 = \frac{\gamma}{2}\norm{\x-\x_*}^2 .
+	\end{equation*}
+	
+	We use this bound in equation \eqref{almost} to get
+	
+	\begin{equation}
+	2\alpha m (1 - 2\alpha \lambda \rho^2) \Expectation\left[ f(\tilde{\x}_{s})-f(\x_*)\right]\leq \frac{2}{\gamma} \Expectation\left[f(\tilde{\x}_{s-1}) - f(\x_*) \right]  + 4\alpha^2\lambda m(\rho^2+1-2\rho)\Expectation\left[f(\tilde{\x}_{s-1}) - f(\x_*)\right]
+	\end{equation}
+	
+	It follows that, 
+	\begin{equation*}
+	\beta = \frac{1}{\gamma\alpha m (1-2\alpha \lambda \rho^2)} + \frac{2\lambda\alpha (\rho^2 + 1-2\rho)}{1-2\alpha \lambda \rho^2} <1.
+	\end{equation*}
+	
+	and by recursion we get the desired result, equation \eqref{goal}. The proof of almost sure convergence follows in exactly the same manner as Theorem \ref{thm:SVRG-AS}.
+\end{proof}
+
+%
+%We now show that this can be further augmented by adding a control variate, thus increasing the rate of convergence and decreasing the sensitivity to hyper parameters. The recursion we will use is as follows,
+%
+%\begin{equation*}
+%\x_{k+1} = \x_k - \alpha \left(\mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) - \eta_k(\mathbf{P}_k\mathbf{P}_k^{\T} - \I) \nabla f(\x_s) \right  )
+%\end{equation*}
+%
+%for some $s < k$. We will be specific regarding the details of the algorithm when it is presented formally in Theorem \ref{thm:svrg}, but we begin by showing how to select an optimal $\eta$; that is, by selecting a $\eta$ which minimizes the variance of the step we take.
+%
+%\begin{lemma}\label{lemma:scalareta}
+%Let $X, Z$  be integrable random variables, $\eta$ a scalar. Then 
+%
+%\begin{equation*}
+%\eta_*:=\arg\min_\eta \mathbb{V}ar\left[Z - \eta \left(X-\Expectation X\right)\right] = \frac{\mathbb{C}ov\left[X,Z\right]}{\mathbb{V}ar\left[X\right]}
+%\end{equation*}
+%\end{lemma}
+%\begin{proof}
+% Clearly, for all $\eta$ we have 
+%	
+%	\begin{equation*}
+%	\Expectation Z = \Expectation\left[Z - \eta \left(X-\Expectation X\right)\right].
+%	\end{equation*} 
+%	
+%and
+%
+%\begin{equation*}
+% \mathbb{V}ar\left[Z - \eta \left(X-\Expectation X\right)\right]
+%= \mathbb{V}ar\left[Z\right] - 2\eta \mathbb{C}ov  \left[Z,X-\Expectation X\right] + \eta^2  \mathbb{V}ar  \left[X-\Expectation X\right] 
+%\end{equation*}
+%
+%We take a derivative with respect to $\eta$ and equate the result to zero,
+%
+%\begin{equation*}
+%0 = -\mathbb{C}ov  \left[Z,X-\Expectation X\right] + \eta \mathbb{V}ar  \left[X-\Expectation X\right],
+%\end{equation*}
+%
+%and solve for $\eta$. The second derivative is $\mathbb{V}ar\left[X-\Expectation X\right]$ which is always non-negative, indicating that the point is a second order minima. Deterministic shifts do not affect the (co)variance, so the lemma is proved.
+%
+%
+%	\end{proof}
+%	
+%
+%\begin{theorem}\label{thm:svrg}
+%		Let $\mathbf{P}_k \in \reals^{d \times \ell}, k=1,2, \ldots$ be random matrices such that $\Expectation \mathbf{P}_k\mathbf{P}_k^{\T} = \I_d$ and $\mathbf{P}^{\T}_k\mathbf{P}_k=\frac{d}{\ell}\I_{\ell}$. Define a `memory' parameter, $m \in \mathbb{Z}^+$. Define the filtration $\mathcal{F}_k = \sigma(\mathbf{P}_1, \ldots \mathbf{P}_{k-1})$. Assume the following:
+%		
+%		\begin{enumerate}
+%			\item For some $\gamma > 0$ and all $\x \in \reals^d$, the function $f$ satisfies the inequality of lemma \ref{PLLemma}: 
+%			\begin{equation}
+%			f(\x) - f(\x_*) \leq \frac{1}{2\gamma} \norm{\nabla f(\x)}^2
+%			\end{equation} 
+%			
+%			\item    $f: \reals^d \to \reals$ is a twice continuously differentiable function with $\norm{\nabla^2f(\x)}\leq \lambda$ for some $\lambda \geq \gamma$ and all $\x \in \reals^d$.
+%			
+%		\end{enumerate}
+%		
+%		
+%		Define the recursion
+%		
+%		\begin{equation}\label{SVRG-recursion}
+%		\x_{k+1} = \x_k - \alpha \left(\mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) - \eta_k (\mathbf{P}_k\mathbf{P}_k^{\T} - I) \nabla f(\x_s) \right)
+%		\end{equation}
+%		
+%		Where $s = k - k$ mod $m$, and $\eta_k = \frac{\langle \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k), \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_s) \rangle}{\norm{\mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_s)}^2}$.  Then $f(\x_k) \convas f(\x_*)$ and $f(\x_k) \overset{L^1}{\to} f(\x_*)$.
+%\end{theorem}
+%
+%\begin{proof}
+%The proof is largely similar to the proof of \ref{thm:svrg}, with additional algebraic manipulations to account for the extra terms. We rearrange equation \eqref{SVRG-recursion} to get 	$\x_{k+1} -\x_k =  - \alpha \left(\mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) - \eta_k(\mathbf{P}_k\mathbf{P}_k^{\T} - \I) \nabla f(\x_s) \right)$ and plug the left hand side into a Taylor expansion to get
+%
+%\small
+%\begin{equation}\label{longform}
+%	f_e(\x_{k+1}) - f_e(\x_k)  \leq - \alpha  \nabla f(\x_k)^{\T}\left(\mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) - \eta_k(\mathbf{P}_k\mathbf{P}_k^{\T} - \I) \nabla f(\x_s) \right) + \frac{\alpha^2\lambda}{2}\norm{\left(\mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_k) - \eta_k(\mathbf{P}_k\mathbf{P}_k^{\T} - \I) \nabla f(\x_s) \right)}^2.
+%\end{equation}
+%\normalsize
+%
+%We expand and simplify the terms on the right one at a time to make the reading more manageable. The first term of \ref{longform} becomes
+%\small
+%\begin{equation}\label{firstterm} -\alpha \norm{\nabla f(\x_k)}^2_{\mathbf{P}_k\mathbf{P}_k^{\T}} - \alpha \eta_k \left(\langle \nabla f(\x_k),\mathbf{P}_k\mathbf{P}_k^{\T} \nabla f(\x_s) \rangle - \langle \nabla f(\x_k), \nabla f(\x_s)\right).
+%\end{equation}
+%
+%\normalsize
+%
+%With some algebraic manipulation, the second term of equation \eqref{longform} is
+%
+%\small
+%\begin{equation}\label{secondterm} \frac{\alpha^2\lambda}{2} \left(\frac{d}{\ell} \norm{\nabla f(\x_k)}^2_{\mathbf{P}_k\mathbf{P}_k^{\T}} - 2\eta_k (\frac{d}{\ell}-1)\langle \nabla f(\x_k), \mathbf{P}_k\mathbf{P}_k^{\T} \langle \nabla f(\x_s) \rangle + \eta_k^2   (1-\frac{2\ell}{d})(\norm{ \mathbf{P}_k\mathbf{P}_k^{\T}\nabla f(\x_s)}^2 + \norm{\nabla f(\x_s)}^2) \right).
+%\end{equation}
+%
+%\normalsize
+%We take an expectation of equations (\ref{longform},\ref{firstterm},\ref{secondterm}) conditioned on the filtration $\mathcal{F}_k$, and recall that $\x_k, \x_s$ are $\mathcal{F}_k$-measurable, and that $\Expectation \mathbf{P}_k\mathbf{P}_k^{\T} = \I$. For equation $\ref{firstterm}$ this yields
+%
+%\small
+%\begin{equation*}
+%\Expectation \left[ -\alpha \norm{\nabla f(\x_k)}^2_{\mathbf{P}_k\mathbf{P}_k^{\T}} - \alpha \eta_k \left(\langle \nabla f(\x_k),\mathbf{P}_k\mathbf{P}_k^{\T} \nabla f(\x_s) \rangle - \langle \nabla f(\x_k), \nabla f(\x_s)\right) \mid \mathcal{F}_k \right] = \norm{\nabla f(\x_k)}^2 - \alpha \eta_kd 
+%\end{equation*}
+%
+%\end{proof}
+%
+
+
+\section*{Appendix}
+
+\subsection*{Proof of Lemma \ref{ascharacterization}}
+We define the set 
+\begin{equation*}
+B_{n,\ell} = \bigcap_{k\geq n}\{\norm{\X_k-\X}<\frac{1}{\ell}\},
+\end{equation*}
+and note that the set of convergence of the sequence can be written as 
+
+\begin{equation*}
+\{\X_n \to \X\} = \bigcap_{\ell}\bigcup_{n}B_{n,\ell}.
+\end{equation*}
+
+Hence, $\X_n \convas \X$ if and only if
+
+\begin{equation*}
+\mathbb{P}\left(\bigcup_n B_{n,\ell}\right) = 1,\qquad \forall \ell \geq 1.
+\end{equation*}
+
+Since $B_{n, \ell} \uparrow \cup_nB_{n,\ell}$ for each $\ell$, it follows that $\X_n\convas\X$ if and only if
+
+\begin{equation*}
+\lim_n \Prob(B_{n,\ell}) = 1, \qquad  \forall \ell \geq 1.
+\end{equation*}
+
+Finally, for any $\epsilon > 0 $ there is an $\ell_* \in \naturals $ such that 
+\begin{equation*}
+B_{k,\ell_*} \subset \bigcap_{k \geq n} \{\norm{\X_k - \X}< \epsilon\}, \qquad \forall k.
+\end{equation*}
+
+The lemma follows. 
+
+\subsection*{Proof of Lemma \ref{comparingconvergence}}
+\begin{proof}
+	Assume $\X_n \overset{L^1}{\longrightarrow} \X$. Then,
+	\begin{align*}
+	\mathbb{P}(\norm{\X_n-\X}>\epsilon )&= \mathbb{P}(\norm{\X_n-\X}^r>\epsilon^r ) \\
+	&\leq \Expectation\norm{\X_n-\X}^r/\epsilon^r \\
+	& \to 0
+	\end{align*}
+Where the second line is an application of Markov's inequality.
+
+\end{proof}
+
+\subsection*{Proof of Lemma \ref{fastplemma}}
+
+\begin{proof}
+	Assume equation \eqref{fastp} holds and $\epsilon > 0$. By the subadditivity of probability measures we have
+	
+	\begin{equation*}
+	\mathbb{P}\left(\bigcup_{k\geq n}\{\norm{\X_n-\X} > \epsilon\}\right) \leq \sum_{k=n}^{\infty} \mathbb{P}(\norm{\X_k-\X}>\epsilon).
+	\end{equation*}
+	
+	The right hand side converges to zero as $n\to\infty$. Therefore we have 
+	
+	\begin{align*}
+	0 &= \lim_{n\to\infty}\mathbb{P}\left(\bigcup_{k\geq n}\{\norm{\X_n-\X} > \epsilon\}\right) \\
+	&\geq \lim_{n\to\infty}\mathbb{P}\left(\bigcap_{k\geq n}\{\norm{\X_n-\X} > \epsilon\}\right)
+	\end{align*}
+	
+	which implies that
+	
+	\begin{equation*} \lim_{n\to\infty}\mathbb{P}\left(\bigcap_{k\geq n}\{\norm{\X_n-\X} \leq \epsilon\}\right) = 1.
+	\end{equation*}
+	
+	and we invoke Lemma \ref{ascharacterization} for the desired result. 
+\end{proof}
+
+
+
+
+
+
+\bibliographystyle{unsrt}
+\bibliography{/home/dkozak/Papers/Stephen/RandomizedBib}
+
+\end{document}
